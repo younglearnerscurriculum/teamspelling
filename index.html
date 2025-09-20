@@ -8,35 +8,29 @@
     body {
       font-family: 'Segoe UI', sans-serif;
       background: linear-gradient(to bottom right, #7C1948, #BB96F6, #A0E8D4);
-      color: #fff;
-      text-align: center;
-      padding: 20px;
+      color: #fff; text-align: center; padding: 20px;
     }
     h1 { color: #FFC683; }
     input, select, button {
-      margin: 8px; padding: 8px 12px;
+      margin: 6px; padding: 8px 12px;
       border-radius: 6px; border: none;
       font-size: 1em;
     }
-    button {
-      background: #F55331; color: white; cursor: pointer;
-    }
+    button { background: #F55331; color: white; cursor: pointer; }
     button:hover { background: #FFC683; color: #642F7F; }
     #timer {
-      font-size: 1.4em; font-weight: bold;
-      margin-top: 15px;
+      font-size: 1.4em; font-weight: bold; margin-top: 15px;
     }
     #timer.warning { color: #F55331; animation: blink 1s step-start infinite; }
     @keyframes blink { 50% { opacity: 0.4; } }
     .scoreboard {
       margin-top: 20px; font-size: 1.1em;
       background: #642F7F; padding: 15px; border-radius: 10px;
-      display: inline-block;
-      text-align: left;
+      display: inline-block; text-align: left; min-width: 280px;
     }
     .playerRow {
-      margin: 10px 0;
-      display: flex; justify-content: space-between; align-items: center;
+      margin: 10px 0; display: flex;
+      justify-content: space-between; align-items: center;
     }
     .playerRow span { font-weight: bold; }
     #popup {
@@ -56,9 +50,12 @@
   <h1>📝 YLC Team Spelling Bee 2025</h1>
   <p>📅 Date: <input type="date" id="dateInput"></p>
 
-  <p>👩‍🏫 Student Teacher: <input type="text" id="teacherName" placeholder="Name"></p>
-  <p>🗣️ Speller 1: <input type="text" id="speller1" placeholder="Name"></p>
-  <p>🗣️ Speller 2 (optional): <input type="text" id="speller2" placeholder="Name"></p>
+  <!-- Names -->
+  <div style="display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin-top:10px;">
+    <p>🗣️ Speller 1: <input type="text" id="speller1" placeholder="Name"></p>
+    <p>🗣️ Speller 2: <input type="text" id="speller2" placeholder="Name"></p>
+    <p>🗣️ Speller 3 (optional): <input type="text" id="speller3" placeholder="Name"></p>
+  </div>
 
   <p>
     🎯 Level:
@@ -70,9 +67,10 @@
   </p>
 
   <button onclick="startRound()">▶️ Start Round</button>
+  <button id="endRoundBtn" style="display:none;" onclick="endRound()">⏹️ End Round</button>
+
   <div id="roundInfo"></div>
   <div id="timer"></div>
-
   <div class="scoreboard" id="scoreboard"></div>
 
   <!-- Popup -->
@@ -81,7 +79,8 @@
       <h2 id="popupTitle">🎉 Congratulations!</h2>
       <p id="popupMessage"></p>
       <p id="popupScores"></p>
-      <p>📸 Please take a screenshot and share it with your teacher.</p>
+      <p id="popupBadges"></p>
+      <p>➡️ 📸 Take Screenshot → Send to Teacher</p>
       <button onclick="closePopup()">OK</button>
     </div>
   </div>
@@ -89,45 +88,77 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script>
     let round = 0, timer, timeLeft = 300;
-    let spellerScores = { sp1: 0, sp2: 0 };
-    let roundScores = [];
+    let spellerScores = { sp1: 0, sp2: 0, sp3: 0 };
+    let roundScores = [], teacherRoles = [];
+
+    const badges = [
+      "🌟 Persistence Star",
+      "🏅 Accuracy Champ",
+      "💡 Creative Thinker",
+      "🎯 Teamwork Hero",
+      "📚 Word Wizard",
+      "🎵 Confident Voice",
+      "✨ Quick Learner",
+      "💖 Supportive Friend"
+    ];
+
+    // Autofill today's date
+    window.onload = function(){
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById("dateInput").value = today;
+    };
 
     function startRound() {
       if (round >= 2) return;
       round++;
 
-      const teacher = document.getElementById("teacherName").value || "Teacher";
       const s1 = document.getElementById("speller1").value || "Speller 1";
-      const s2 = document.getElementById("speller2").value || "";
+      const s2 = document.getElementById("speller2").value || "Speller 2";
+      const s3 = document.getElementById("speller3").value || "";
       const dateVal = document.getElementById("dateInput").value || new Date().toLocaleDateString();
       const lvl = document.getElementById("level").value;
-
       let wordTarget = lvl==="1"?6:(lvl==="2"?8:12);
 
-      document.getElementById("roundInfo").innerHTML =
-        `📅 ${dateVal} | 👩‍🏫 ${teacher} | Round ${round}/2<br>
-        🎯 Target: Spell ${wordTarget} words in 5 minutes`;
+      // Assign teacher
+      let teacherNow = (round===1? s1 : s2);
+      teacherRoles.push(teacherNow);
 
-      renderScoreboard(s1, s2);
-      startTimer(300); // 5 minutes
+      document.getElementById("roundInfo").innerHTML =
+        `📅 ${dateVal} | 👩‍🏫 Teacher: ${teacherNow} | Round ${round}/2<br>
+        🎯 Target: ${wordTarget} words in 5 minutes`;
+
+      renderScoreboard(s1, s2, s3, teacherNow);
+      document.getElementById("endRoundBtn").style.display="inline-block";
+      startTimer(300);
     }
 
-    function renderScoreboard(s1, s2){
+    function renderScoreboard(s1, s2, s3, teacherNow){
       const sb = document.getElementById("scoreboard");
       sb.innerHTML = "";
-      sb.innerHTML += `
-        <div class="playerRow">
-          <span>${s1}</span> | Score: <span id="sp1Score">${spellerScores.sp1}</span>
-          <button onclick="updateScore('sp1',1)">+1</button>
-          <button onclick="updateScore('sp1',-1)">-1</button>
-        </div>`;
-      if(s2){
+
+      if(s1 !== teacherNow){
         sb.innerHTML += `
-        <div class="playerRow">
-          <span>${s2}</span> | Score: <span id="sp2Score">${spellerScores.sp2}</span>
-          <button onclick="updateScore('sp2',1)">+1</button>
-          <button onclick="updateScore('sp2',-1)">-1</button>
-        </div>`;
+          <div class="playerRow">
+            ➡️ <span>${s1}</span> | Score: <span id="sp1Score">${spellerScores.sp1}</span>
+            <button onclick="updateScore('sp1',1)">+1</button>
+            <button onclick="updateScore('sp1',-1)">-1</button>
+          </div>`;
+      }
+      if(s2 !== teacherNow){
+        sb.innerHTML += `
+          <div class="playerRow">
+            ➡️ <span>${s2}</span> | Score: <span id="sp2Score">${spellerScores.sp2}</span>
+            <button onclick="updateScore('sp2',1)">+1</button>
+            <button onclick="updateScore('sp2',-1)">-1</button>
+          </div>`;
+      }
+      if(s3 && s3 !== teacherNow){
+        sb.innerHTML += `
+          <div class="playerRow">
+            ➡️ <span>${s3}</span> | Score: <span id="sp3Score">${spellerScores.sp3}</span>
+            <button onclick="updateScore('sp3',1)">+1</button>
+            <button onclick="updateScore('sp3',-1)">-1</button>
+          </div>`;
       }
     }
 
@@ -154,24 +185,39 @@
     }
 
     function endRound(){
-      // save round scores
-      roundScores.push({sp1: spellerScores.sp1, sp2: spellerScores.sp2});
-      
+      clearInterval(timer);
+      document.getElementById("endRoundBtn").style.display="none";
+      roundScores.push({...spellerScores});
+
       if(round < 2){
-        // popup for round 1
-        document.getElementById("popupTitle").textContent="✅ Round 1 Complete!";
-        document.getElementById("popupMessage").textContent="Switch roles and get ready for Round 2.";
-        document.getElementById("popupScores").innerHTML=
-          `Speller 1: ${spellerScores.sp1}<br>Speller 2: ${spellerScores.sp2}`;
+        document.getElementById("popupTitle").textContent="✅ Round 1 Done!";
+        document.getElementById("popupMessage").textContent="Switch roles ➡️ Next Round!";
+        document.getElementById("popupScores").innerHTML="";
+        document.getElementById("popupBadges").innerHTML="";
         document.getElementById("popup").style.display="flex";
       } else {
-        // popup for final
-        document.getElementById("popupTitle").textContent="🎉 Congratulations!";
-        document.getElementById("popupMessage").textContent="Both rounds complete!";
-        document.getElementById("popupScores").innerHTML=
-          `Final Scores:<br>
-           Speller 1: ${spellerScores.sp1}<br>
-           Speller 2: ${spellerScores.sp2}`;
+        // Final popup
+        document.getElementById("popupTitle").textContent="🎉 Great Job Team!";
+        document.getElementById("popupMessage").textContent="Final Scores:";
+        
+        let scoresHTML="";
+        let badgesHTML="";
+        for(let [key,score] of Object.entries(spellerScores)){
+          if(score>0 || key==="sp1" || key==="sp2" || key==="sp3"){
+            const playerName=document.getElementById(key.replace("sp","speller")).value || key.toUpperCase();
+            if(playerName!==""){
+              const badge=badges[Math.floor(Math.random()*badges.length)];
+              scoresHTML+=`➡️ 🗣️ ${playerName}: ${score} pts<br>`;
+              badgesHTML+=`${playerName} → ${badge}<br>`;
+            }
+          }
+        }
+
+        let teacherInfo=`👩‍🏫 Round 1 Teacher → ${teacherRoles[0]}<br>
+                         👩‍🏫 Round 2 Teacher → ${teacherRoles[1]}`;
+        
+        document.getElementById("popupScores").innerHTML=scoresHTML;
+        document.getElementById("popupBadges").innerHTML=badgesHTML+"<br>"+teacherInfo;
         document.getElementById("popup").style.display="flex";
         launchConfetti();
       }
